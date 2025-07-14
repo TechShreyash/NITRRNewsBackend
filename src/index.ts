@@ -1,0 +1,25 @@
+// src/index.ts
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config';
+import { connectDB } from './db';
+import authRoutes from './routes/auth';
+import newsRoutes from './routes/news';
+import uploadRoutes from './routes/upload';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/api', authRoutes);
+app.use('/api/news', newsRoutes);
+app.use('/api/upload', uploadRoutes);
+
+const start = async () => {
+    await connectDB();
+    app.listen(process.env.PORT, () =>
+        console.log(`🚀 API ready on http://localhost:${process.env.PORT}`)
+    );
+};
+
+start();
