@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@googleapis/drive": "^14.1.0",
+    "axios": "^1.10.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "date-fns-tz": "^3.2.0",
@@ -19,6 +20,7 @@
     "express": "^5.1.0",
     "googleapis": "^152.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mime-types": "^3.0.1",
     "mongoose": "^8.16.3",
     "multer": "^2.0.1",
     "open": "^10.1.2",
@@ -29,6 +31,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/mime-types": "^3.0.1",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.0.13",
     "eslint": "^9.31.0",

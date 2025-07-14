@@ -1,52 +1,77 @@
 // src/googleDriveClient.ts
-import { TsGoogleDrive } from 'ts-google-drive';
+//---------------------------------------------------------------------
+// Upload helper for Google Drive (Node.js).
+// Requires env vars:
+//   GOOGLE_CLIENT_ID  GOOGLE_CLIENT_SECRET  GOOGLE_REFRESH_TOKEN
+//   [optional] DRIVE_ROOT_ID  – target folder ID
+//---------------------------------------------------------------------
+
+import { google } from 'googleapis';
+import fs   from 'node:fs';
+import fsp  from 'node:fs/promises';
 import path from 'node:path';
-import fs from 'node:fs/promises';
+import mime from 'mime-types';
 import 'dotenv/config';
 
-/* ---------------------------------------------------------------------------
-   1.  OAuth-2 client built from ENV variables
-       -------------------------------------------------------------
-       • GOOGLE_CLIENT_ID        – OAuth client-ID you created in Google Cloud
-       • GOOGLE_CLIENT_SECRET    – matching client secret
-       • GOOGLE_REFRESH_TOKEN    – one-time token you generated with "offline" access
---------------------------------------------------------------------------- */
+/* ────────────────────── OAuth2 client ─────────────────────── */
+const oauth2 = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID!,
+  process.env.GOOGLE_CLIENT_SECRET!,
+  process.env.GOOGLE_REDIRECT_URI || 'http://localhost'
+);
+oauth2.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN! });
 
-const drive = new TsGoogleDrive({
-  oAuthCredentials: {
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN!,         // long-lived
-  },
-  oauthClientOptions: {
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    // redirectUri is optional for refresh-token flows but you can add it:
-    // redirectUri: process.env.GOOGLE_REDIRECT_URI,
-  },
-});
+const drive = google.drive({ version: 'v3', auth: oauth2 });
 
+/* ────────────────────── Public return type ─────────────────── */
 export interface DriveMeta {
   id: string;
   mimeType: string;
   embedLink: string;
 }
 
-/* ---------------------------------------------------------------------------
-   uploadAndGetMeta() – unchanged except it now runs under OAuth creds
---------------------------------------------------------------------------- */
-export async function uploadAndGetMeta(localPath: string): Promise<DriveMeta> {
-  // 1. Upload into the user’s My Drive (15 GB free) – parent is optional
-  const file = await drive.upload(localPath, {
-    parent: process.env.DRIVE_ROOT_ID,     // leave undefined for My Drive root
+/**
+ * Upload `localPath` to Drive.
+ * Calls `onChunk(loaded,total)` for every progress tick.
+ */
+export async function uploadAndGetMeta(
+  localPath: string,
+  onChunk?: (loaded: number, total: number) => void
+): Promise<DriveMeta> {
+  const name     = path.basename(localPath);
+  const mimeType = (mime.lookup(name) || 'application/octet-stream').toString();
+  const size     = (await fsp.stat(localPath)).size;           // bytes
+
+  const res = await drive.files.create(
+    {
+      requestBody: {
+        name,
+        parents: process.env.DRIVE_ROOT_ID ? [process.env.DRIVE_ROOT_ID] : undefined
+      },
+      media: { mimeType, body: fs.createReadStream(localPath) },
+      fields: 'id, mimeType',
+      supportsAllDrives: true
+    },
+    {
+      onUploadProgress: ev => {
+        // ev.total is undefined in Node, so use our own `size`
+        if (onChunk) onChunk(ev.bytesRead ?? ev.loaded, size);
+      }
+    }
+  );
+
+  /* Make the file publicly readable */
+  const fileId = res.data.id!;
+  await drive.permissions.create({
+    fileId,
+    requestBody: { role: 'reader', type: 'anyone' }
   });
-  console.log('File uploaded:', file);
 
-  // 2. Public embed link (image ↔ all other types)
-  const embedLink = file.mimeType.startsWith('image/')
-    ? `https://drive.google.com/uc?export=view&id=${file.id}`
-    : `https://drive.google.com/file/d/${file.id}/preview`;
+  await fsp.unlink(localPath);
 
-  // 3. Delete the tmp file that Multer wrote
-  await fs.unlink(localPath);
+  const embedLink = mimeType.startsWith('image/')
+    ? `https://drive.google.com/uc?export=view&id=${fileId}`
+    : `https://drive.google.com/file/d/${fileId}/preview`;
 
-  return { id: file.id, mimeType: file.mimeType, embedLink };
+  return { id: fileId, mimeType, embedLink };
 }
