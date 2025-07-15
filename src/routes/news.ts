@@ -5,42 +5,48 @@ import { requireAuth } from '../middleware/auth';
 const PAGE_SIZE = 20;
 const router = Router();
 
+/**
+ * GET /api/news?page=N
+ * – limited users see only their department’s news
+ * – returns pagination metadata + news list
+ */
 router.get(
-    '/',
-    requireAuth,
-    async (req: Request, res, next) => {
-        try {
-            /* 1. Parse ?page= query (1-based, default 1) */
-            const page = Math.max(parseInt(String(req.query.page ?? '1'), 10), 1);
+  '/',
+  requireAuth,
+  async (req: Request, res, next) => {
+    try {
+      /* 1. page query (1-based) */
+      const page = Math.max(parseInt(String(req.query.page ?? '1'), 10), 1);
 
-            /* 2. Access filter: limited ⇒ only that department */
-            const filter =
-                req.user?.access === 'limited'
-                    ? { department: req.user.dept }
-                    : {};
+      /* 2. Filter for limited users */
+      const filter =
+        req.user?.access === 'limited'
+          ? { department: req.user.deptShort }
+          : {};
 
-            /* 3. Total count for hasNextPage ----------------------------------- */
-            const totalDocs = await News.countDocuments(filter);   // fast index scan:contentReference[oaicite:1]{index=1}
-            const hasNextPage = page * PAGE_SIZE < totalDocs;        // true iff more docs remain
+      /* 3. Count for hasNextPage */
+      const totalDocs   = await News.countDocuments(filter);
+      const hasNextPage = page * PAGE_SIZE < totalDocs;
 
-            /* 4. Fetch the actual page of data --------------------------------- */
-            const items = await News.find(filter)
-                .sort({ createdAt: -1 })
-                .skip((page - 1) * PAGE_SIZE)
-                .limit(PAGE_SIZE);
+      /* 4. Page query (always keep department) */
+      const items = await News.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+        .select('title body department files createdAt');  // include dept
 
-            res.json({
-                page,
-                pageSize: PAGE_SIZE,
-                count: items.length,
-                total: totalDocs,
-                hasNextPage,
-                data: items
-            });
-        } catch (err) {
-            next(err);
-        }
+      res.json({
+        page,
+        pageSize   : PAGE_SIZE,
+        count      : items.length,
+        total      : totalDocs,
+        hasNextPage,
+        data       : items
+      });
+    } catch (err) {
+      next(err);
     }
+  }
 );
 
 export default router;

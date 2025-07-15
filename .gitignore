@@ -3,3 +3,4 @@ node_modules
 .env
 service.json
 tmp
+/src/uploads

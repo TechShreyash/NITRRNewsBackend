@@ -11,7 +11,7 @@ import { bus } from '../progressBus';
 
 const router = Router();
 
-/* Multer (500 MB / file) */
+/* Multer (500 MB / file) */
 const upload = multer({
     storage: multer.diskStorage({
         destination: (_r, _f, cb) => {
@@ -34,49 +34,46 @@ router.post('/', requireAuth, upload.single('files'), async (req, res, next) => 
         const file = req.file!;
         const { title, body, newsId } = req.body;
 
-        /* Phase-1 bar is already 100 % here            */
+        /* Phase‑1 progress (browser → server) is already 100 % */
         bus.emit('progress', { file: file.originalname, phase: 'upload', pct: 100 });
 
-        /* Phase-2: server → Drive                      */
+        /* Phase‑2: server → Drive */
         const start = Date.now();
         const meta = await uploadAndGetMeta(file.path, (loaded, total) => {
             const secs = (Date.now() - start) / 1000;
             const speed = secs ? (loaded / 1024 / 1024 / secs).toFixed(2) : '0';
-            const eta = parseFloat(speed) > 0 ? (total - loaded) / 1024 / 1024 / parseFloat(speed) : 0;
+            const eta = +speed > 0 ? (total - loaded) / 1024 / 1024 / +speed : 0;
             const pct = Math.round((loaded / total) * 100);
             bus.emit('progress', {
-                file: file.originalname,
-                phase: 'gdrive',
-                pct,
-                speed,
-                eta: Math.round(eta)
+                file: file.originalname, phase: 'gdrive',
+                pct, speed, eta: Math.round(eta)
             });
         });
 
-        /* ─── create-or-append logic ───────────────────────────── */
+        /* Include the filename on every stored file object */
+        const fileDoc = { ...meta, originalName: file.originalname, driveId: meta.id };
+
+
+        /* create‑or‑append logic */
         let newsDoc;
         if (newsId) {
-            /* append to existing doc */
             newsDoc = await News.findByIdAndUpdate(
                 newsId,
-                { $push: { files: { ...meta, originalName: file.originalname } } },
+                { $push: { files: fileDoc } },
                 { new: true }
             );
             if (!newsDoc) return res.status(400).json({ message: 'newsId invalid' });
         } else {
-            /* first file → new News document */
             newsDoc = await News.create({
-                department: req.user!.dept,
+                department: req.user!.deptShort,
                 title,
                 body,
-                files: [{ ...meta, originalName: file.originalname }],
-                createdAt: new Date(
-                    formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd HH:mm:ss')
-                )
+                files: [fileDoc],
+                createdAt: new Date()
             });
         }
 
-        res.status(201).json({ newsId: newsDoc._id }); // return id after every file
+        res.status(201).json({ newsId: newsDoc._id });   // front‑end stores id
     } catch (err) { next(err); }
 });
 
