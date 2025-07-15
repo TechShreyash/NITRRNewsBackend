@@ -20,13 +20,12 @@ router.post('/login', async (req, res) => {
   /* 2. Sign JWT — include deptShort / deptLong */
   const token = jwt.sign(
     {
-      sub       : user.id,        // MongoDB _id
-      deptShort : user.deptShort, // e.g. "IT"
-      deptLong  : user.deptLong,  // e.g. "Information Technology"
-      access    : user.access     // "limited" | "full"
+      sub: user.id,        // MongoDB _id
+      deptShort: user.deptShort, // e.g. "IT"
+      deptLong: user.deptLong,  // e.g. "Information Technology"
+      access: user.access     // "limited" | "full"
     },
     process.env.JWT_SECRET!,      // make sure this env var exists
-    { expiresIn: '1h' }
   );
 
   res.json({ token });
