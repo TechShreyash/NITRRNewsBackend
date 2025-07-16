@@ -8,6 +8,7 @@ import newsRoutes from './routes/news';
 import uploadRoutes from './routes/upload';
 import eventRouter from './routes/events';
 import dataRouter from './routes/data'
+import accountRouter from './routes/account';
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,8 @@ app.use('/api/news', newsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api', eventRouter);
 app.use('/api/data', dataRouter);
+app.use('/api/account', accountRouter);
+
 
 const start = async () => {
     await connectDB();
