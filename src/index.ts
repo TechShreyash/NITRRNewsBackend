@@ -9,6 +9,7 @@ import uploadRoutes from './routes/upload';
 import eventRouter from './routes/events';
 import dataRouter from './routes/data'
 import accountRouter from './routes/account';
+import newsGroupedRouter from './routes/news.grouped';
 
 const app = express();
 app.use(cors());
@@ -20,6 +21,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api', eventRouter);
 app.use('/api/data', dataRouter);
 app.use('/api/account', accountRouter);
+app.use('/api/news/grouped', newsGroupedRouter);
+
 
 
 const start = async () => {
